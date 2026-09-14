@@ -1,0 +1,13 @@
+parameters:
+    level: max
+    phpVersion: 80300
+    paths:
+        - src
+        - tests
+    tmpDir: .phpstan.cache
+    # Neither WordPress nor WPGraphQL ships an autoloadable class map, so their
+    # symbols come from stubs.
+    scanFiles:
+        - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+        - vendor/axepress/wp-graphql-stubs/wp-graphql-stubs.php
+    treatPhpDocTypesAsCertain: false
