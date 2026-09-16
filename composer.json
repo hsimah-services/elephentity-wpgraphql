@@ -2,7 +2,7 @@
     "name": "elephentity/wpgraphql",
     "description": "Exposes Elephentity entities and mutators to WPGraphQL from a compiled manifest.",
     "type": "library",
-    "license": "MIT",
+    "license": "Apache-2.0",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
