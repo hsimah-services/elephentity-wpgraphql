@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d858e5a0b99234e652a8fe975bb2915b",
+    "content-hash": "0dc5ff689ef0fc8b98a2ecef8677172c",
     "packages": [
         {
             "name": "elephentity/runtime",
-            "version": "v0.8.0",
+            "version": "v0.10.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hsimah-services/elephentity-runtime.git",
-                "reference": "b6a886b53c5f6f8dffbc576ac980c87e6dbd901f"
+                "reference": "f3190c28d60e3e2e5f463f59e7d0992d1f700efd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hsimah-services/elephentity-runtime/zipball/b6a886b53c5f6f8dffbc576ac980c87e6dbd901f",
-                "reference": "b6a886b53c5f6f8dffbc576ac980c87e6dbd901f",
+                "url": "https://api.github.com/repos/hsimah-services/elephentity-runtime/zipball/f3190c28d60e3e2e5f463f59e7d0992d1f700efd",
+                "reference": "f3190c28d60e3e2e5f463f59e7d0992d1f700efd",
                 "shasum": ""
             },
             "require": {
@@ -38,14 +38,14 @@
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "MIT"
+                "Apache-2.0"
             ],
             "description": "Elephentity runtime contracts: storage port, unit of work, verification, loaders.",
             "support": {
                 "issues": "https://github.com/hsimah-services/elephentity-runtime/issues",
-                "source": "https://github.com/hsimah-services/elephentity-runtime/tree/v0.8.0"
+                "source": "https://github.com/hsimah-services/elephentity-runtime/tree/v0.10.0"
             },
-            "time": "2026-09-14T16:10:42+00:00"
+            "time": "2026-09-22T00:43:04+00:00"
         },
         {
             "name": "psr/container",

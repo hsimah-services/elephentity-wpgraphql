@@ -131,6 +131,21 @@ final class ResolverTest extends TestCase
         self::assertSame(GlobalId::encode('Post', 7), $payload['deletedId']);
     }
 
+    public function testAHiddenMutationResultIsNullWithoutAReadError(): void
+    {
+        $gateway = new FakeGateway();
+        $gateway->denyReads = true;
+        $configs = (new MutationRegistrar($this->manifest(), $gateway))->configs();
+        $payload = $this->call($configs['updatePost']['mutateAndGetPayload'], ['id' => '7']);
+        $outputs = $configs['updatePost']['outputFields'];
+        self::assertIsArray($outputs);
+        $output = $outputs['post'];
+        self::assertIsArray($output);
+        self::assertIsCallable($output['resolve']);
+        self::assertNull($output['resolve']($payload));
+        self::assertSame(['update Post#7()'], $gateway->calls);
+    }
+
     public function testAMutationHandsBackTheRowItTouched(): void
     {
         // So a client can update its cache without a second round trip.
@@ -147,7 +162,7 @@ final class ResolverTest extends TestCase
 
         self::assertSame('Post', $output['type']);
         self::assertIsCallable($output['resolve']);
-        self::assertNotNull($output['resolve'](['id' => '7']));
+        self::assertNotNull($output['resolve']($this->call($configs['updatePost']['mutateAndGetPayload'], ['id' => '7'])));
     }
 
     /**

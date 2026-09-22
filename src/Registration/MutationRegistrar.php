@@ -6,6 +6,7 @@ namespace Eleph\WPGraphQL\Registration;
 
 use Eleph\Runtime\Gateway\EntityGateway;
 use Eleph\Runtime\Identity\EntityId;
+use Eleph\Runtime\Mutation\MutationResult;
 use Eleph\WPGraphQL\Manifest\GraphQLType;
 use Eleph\WPGraphQL\Manifest\Manifest;
 use Eleph\WPGraphQL\Manifest\MutationEntry;
@@ -105,8 +106,8 @@ final readonly class MutationRegistrar
         return [
             lcfirst($type) => [
                 'type' => $type,
-                'resolve' => fn (array $payload): ?object => is_string($payload['id'] ?? null)
-                    ? $this->gateway->find($mutation->entity, EntityId::of($payload['id']))
+                'resolve' => fn (array $payload): ?object => ($payload['result'] ?? null) instanceof MutationResult
+                    ? $payload['result']->entity
                     : null,
             ],
         ];
@@ -115,28 +116,14 @@ final readonly class MutationRegistrar
     private function resolver(MutationEntry $mutation): callable
     {
         return function (array $input) use ($mutation): array {
-            $id = match ($mutation->kind) {
-                MutationEntry::CREATE => $this->gateway->create(
-                    $mutation->entity,
-                    $this->withoutId($mutation, $input),
-                ),
-                default => $this->identifier($input),
+            $result = match ($mutation->kind) {
+                MutationEntry::CREATE => $this->gateway->create($mutation->entity, $this->withoutId($mutation, $input)),
+                MutationEntry::UPDATE => $this->gateway->update($mutation->entity, $this->identifier($input), $this->withoutId($mutation, $input)),
+                MutationEntry::ACTION => $this->gateway->runAction($mutation->entity, (string) $mutation->method, $this->identifier($input), $this->withoutId($mutation, $input)),
+                default => throw new InvalidArgumentException('Unknown mutation kind.'),
             };
 
-            if (MutationEntry::UPDATE === $mutation->kind) {
-                $this->gateway->update($mutation->entity, $id, $this->withoutId($mutation, $input));
-            }
-
-            if (MutationEntry::ACTION === $mutation->kind) {
-                $this->gateway->runAction(
-                    $mutation->entity,
-                    (string) $mutation->method,
-                    $id,
-                    $this->withoutId($mutation, $input),
-                );
-            }
-
-            return ['id' => (string) $id];
+            return ['id' => (string) $result->id, 'result' => $result];
         };
     }
 

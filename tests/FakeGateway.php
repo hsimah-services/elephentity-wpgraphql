@@ -6,6 +6,7 @@ namespace Eleph\WPGraphQL\Tests;
 
 use Eleph\Runtime\Gateway\EntityGateway;
 use Eleph\Runtime\Identity\EntityId;
+use Eleph\Runtime\Mutation\MutationResult;
 use Eleph\Runtime\Policy\AccessDenied;
 use Eleph\Runtime\Query\EntityQuery;
 use Eleph\Runtime\Storage\Cursor;
@@ -59,18 +60,19 @@ final class FakeGateway implements EntityGateway
         return $this->query();
     }
 
-    public function create(string $entity, array $input): EntityId
+    public function create(string $entity, array $input): MutationResult
     {
         $this->calls[] = sprintf('create %s(%s)', $entity, implode(',', array_keys($input)));
         $this->input = $input;
 
-        return EntityId::of(1);
+        return new MutationResult(EntityId::of(1), $this->denyReads ? null : ($this->items[0] ?? null));
     }
 
-    public function update(string $entity, EntityId $id, array $input): void
+    public function update(string $entity, EntityId $id, array $input): MutationResult
     {
         $this->calls[] = sprintf('update %s#%s(%s)', $entity, $id, implode(',', array_keys($input)));
         $this->input = $input;
+        return new MutationResult($id, $this->denyReads ? null : ($this->items[0] ?? null));
     }
 
     public function delete(string $entity, EntityId $id): void
@@ -78,9 +80,18 @@ final class FakeGateway implements EntityGateway
         $this->calls[] = sprintf('delete %s#%s', $entity, $id);
     }
 
-    public function runAction(string $entity, string $action, EntityId $id, array $args): void
+    public function runAction(string $entity, string $action, EntityId $id, array $args): MutationResult
     {
         $this->calls[] = sprintf('action %s::%s#%s(%s)', $entity, $action, $id, implode(',', array_keys($args)));
+        return new MutationResult($id, $this->denyReads ? null : ($this->items[0] ?? null));
+    }
+
+    public function runActions(string $entity, EntityId $id, array $actions): MutationResult
+    {
+        foreach ($actions as $action) {
+            $this->runAction($entity, $action->name, $id, $action->arguments);
+        }
+        return new MutationResult($id, $this->denyReads ? null : ($this->items[0] ?? null));
     }
 
     /**
