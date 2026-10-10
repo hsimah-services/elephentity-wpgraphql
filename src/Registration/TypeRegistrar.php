@@ -386,8 +386,7 @@ final readonly class TypeRegistrar
                     'description' => $query->description ?? '',
                     'args' => $this->args($query->args),
                     'resolve' => fn (mixed $source, array $args): ?object => $this->gateway
-                        ->runQuery($query->entity, $query->query, $this->rawIds($query->args, $args))
-                        ->first(),
+                        ->runQuery($query->entity, $query->query, $this->rawIds($query->args, $args)),
                 ],
             ];
         }
@@ -397,10 +396,14 @@ final readonly class TypeRegistrar
 
     private function queryResolver(QueryFieldEntry $query): callable
     {
-        return fn (mixed $source, array $args): array => $this->connections->resolve(
-            $this->gateway->runQuery($query->entity, $query->query, $this->rawIds($query->args, $args)),
-            $args,
-        );
+        return function (mixed $source, array $args) use ($query): array {
+            $result = $this->gateway->runQuery($query->entity, $query->query, $this->rawIds($query->args, $args));
+            if (!$result instanceof EntityQuery) {
+                throw new RuntimeException(sprintf('Collection query %s.%s must return EntityQuery.', $query->entity, $query->query));
+            }
+
+            return $this->connections->resolve($result, $args);
+        };
     }
 
     /**
