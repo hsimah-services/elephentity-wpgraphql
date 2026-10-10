@@ -7,6 +7,7 @@ namespace Eleph\WPGraphQL\Tests;
 use Closure;
 use Eleph\Runtime\Policy\AccessDenied;
 use Eleph\WPGraphQL\Manifest\Manifest;
+use Eleph\WPGraphQL\Manifest\QueryFieldEntry;
 use Eleph\WPGraphQL\Registration\MutationRegistrar;
 use Eleph\WPGraphQL\Registration\TypeRegistrar;
 use Eleph\WPGraphQL\Relay\GlobalId;
@@ -112,6 +113,23 @@ final class ResolverTest extends TestCase
         self::assertSame(347, $page['totalCount'], 'the table needs a total, not a page size');
         self::assertTrue($page['pageInfo']['hasNextPage']);
         self::assertFalse($page['pageInfo']['hasPreviousPage']);
+    }
+
+    public function testSingularQueriesPreserveFoundAbsentAndDeniedResults(): void
+    {
+        $manifest = new Manifest(queries: ['postBySlug' => new QueryFieldEntry('postBySlug', 'Post', false, 'Post', 'bySlug')]);
+        $gateway = new FakeGateway();
+        $gateway->singularQuery = true;
+        $resolve = (new TypeRegistrar($manifest, $gateway))->rootFieldConfigs()[0]['field']['resolve'];
+        self::assertIsCallable($resolve);
+        $post = new stdClass();
+        $gateway->items = [$post];
+        self::assertSame($post, $resolve(null, []));
+        $gateway->items = [];
+        self::assertNull($resolve(null, []));
+        $gateway->items = [$post];
+        $gateway->denyReads = true;
+        self::assertNull($resolve(null, []));
     }
 
     public function testAPublishedQueryResolvesThroughItsOwnName(): void

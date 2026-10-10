@@ -35,6 +35,8 @@ final class FakeGateway implements EntityGateway
 
     public bool $denyReads = false;
 
+    public bool $singularQuery = false;
+
     public function find(string $entity, EntityId $id): ?object
     {
         $this->calls[] = sprintf('find %s#%s', $entity, $id);
@@ -53,11 +55,11 @@ final class FakeGateway implements EntityGateway
         return $this->query();
     }
 
-    public function runQuery(string $entity, string $query, array $args): EntityQuery
+    public function runQuery(string $entity, string $query, array $args): ?object
     {
         $this->calls[] = sprintf('query %s::%s(%s)', $entity, $query, implode(',', array_keys($args)));
 
-        return $this->query();
+        return $this->singularQuery ? ($this->denyReads ? null : ($this->items[0] ?? null)) : $this->query();
     }
 
     public function create(string $entity, array $input): MutationResult
