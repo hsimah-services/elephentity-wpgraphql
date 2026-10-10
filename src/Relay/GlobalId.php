@@ -85,9 +85,9 @@ final readonly class GlobalId implements Stringable
      * Null when there is no usable id at all, so the caller decides whether that is a
      * missing argument or a row that cannot exist.
      */
-    public static function entityId(mixed $value): ?EntityId
+    public static function entityId(mixed $value, ?string $expectedType = null): ?EntityId
     {
-        $raw = self::raw($value);
+        $raw = self::raw($value, $expectedType);
 
         if (!is_int($raw) && !is_string($raw)) {
             return null;
@@ -103,9 +103,13 @@ final readonly class GlobalId implements Stringable
     /**
      * A global id unwrapped, anything else left exactly as it arrived.
      */
-    public static function raw(mixed $value): mixed
+    public static function raw(mixed $value, ?string $expectedType = null): mixed
     {
         $decoded = is_string($value) ? self::decode($value) : null;
+
+        if (null !== $decoded && null !== $expectedType && $decoded->type !== $expectedType) {
+            throw new InvalidArgumentException(sprintf('Expected a %s ID, received %s.', $expectedType, $decoded->type));
+        }
 
         return null === $decoded ? $value : $decoded->id;
     }
