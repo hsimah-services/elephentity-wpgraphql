@@ -64,7 +64,7 @@ final readonly class MutationRegistrar
                 'inputFields' => ['id' => ['type' => ['non_null' => 'ID']]],
                 'outputFields' => ['deletedId' => ['type' => 'ID']],
                 'mutateAndGetPayload' => function (array $input) use ($root): array {
-                    $id = $this->identifier($input);
+                    $id = $this->identifier($input, $root->type);
                     $this->gateway->delete($root->entity, $id);
 
                     // The global form, because it is the id the client cached under
@@ -118,8 +118,8 @@ final readonly class MutationRegistrar
         return function (array $input) use ($mutation): array {
             $result = match ($mutation->kind) {
                 MutationEntry::CREATE => $this->gateway->create($mutation->entity, $this->withoutId($mutation, $input)),
-                MutationEntry::UPDATE => $this->gateway->update($mutation->entity, $this->identifier($input), $this->withoutId($mutation, $input)),
-                MutationEntry::ACTION => $this->gateway->runAction($mutation->entity, (string) $mutation->method, $this->identifier($input), $this->withoutId($mutation, $input)),
+                MutationEntry::UPDATE => $this->gateway->update($mutation->entity, $this->identifier($input, $this->typeFor($mutation->entity)), $this->withoutId($mutation, $input)),
+                MutationEntry::ACTION => $this->gateway->runAction($mutation->entity, (string) $mutation->method, $this->identifier($input, $this->typeFor($mutation->entity)), $this->withoutId($mutation, $input)),
                 default => throw new InvalidArgumentException('Unknown mutation kind.'),
             };
 
@@ -135,11 +135,11 @@ final readonly class MutationRegistrar
      *
      * @param array<array-key, mixed> $input
      */
-    private function identifier(array $input): EntityId
+    private function identifier(array $input, string $type): EntityId
     {
         // A client only ever holds the global form, so that is what arrives. A raw row
         // id still resolves, which keeps a hand-written mutation working.
-        return GlobalId::entityId($input['id'] ?? null)
+        return GlobalId::entityId($input['id'] ?? null, $type)
             ?? throw new InvalidArgumentException('This mutation needs an id.');
     }
 
@@ -162,7 +162,7 @@ final readonly class MutationRegistrar
 
         foreach ($input as $name => $value) {
             if (is_string($name)) {
-                $fields[$name] = $this->raw($mutation->inputs[$name] ?? null, $value);
+                $fields[$name] = $this->raw($mutation->inputs[$name] ?? null, $value, $this->inputType($mutation, $name));
             }
         }
 
@@ -173,15 +173,37 @@ final readonly class MutationRegistrar
      * Decoding is strict — anything that is not one of ours is passed through exactly
      * as it arrived — so a spec field genuinely typed `id` is untouched.
      */
-    private function raw(?GraphQLType $declared, mixed $value): mixed
+    private function raw(?GraphQLType $declared, mixed $value, ?string $expectedType): mixed
     {
         if ('ID' !== $declared?->name) {
             return $value;
         }
 
         return is_array($value)
-            ? array_map(GlobalId::raw(...), $value)
-            : GlobalId::raw($value);
+            ? array_map(static fn (mixed $id): mixed => GlobalId::raw($id, $expectedType), $value)
+            : GlobalId::raw($value, $expectedType);
+    }
+
+    private function inputType(MutationEntry $mutation, string $name): ?string
+    {
+        if (MutationEntry::ACTION === $mutation->kind) {
+            return null;
+        }
+
+        foreach ($this->manifest->objects as $object) {
+            if ($object->entity !== $mutation->entity) {
+                continue;
+            }
+
+            $fieldType = ($object->fields[$name] ?? null)?->type->name;
+            if (null !== $fieldType && isset($this->manifest->objects[$fieldType])) {
+                return $fieldType;
+            }
+
+            return ($object->connections[$name] ?? null)?->toType;
+        }
+
+        return null;
     }
 
     private function typeFor(string $entity): string

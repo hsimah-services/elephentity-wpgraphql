@@ -361,11 +361,11 @@ final readonly class TypeRegistrar
                     'type' => $root->type,
                     'description' => sprintf('One %s by id.', $root->type),
                     'args' => ['id' => ['type' => ['non_null' => 'ID']]],
-                    'resolve' => function (mixed $source, array $args) use ($entity): ?object {
+                    'resolve' => function (mixed $source, array $args) use ($entity, $root): ?object {
                         // The id a client holds is the global one this type hands out,
                         // so it arrives encoded. A raw row id still works, which is
                         // what keeps a hand-written query or an older client running.
-                        $id = GlobalId::entityId($args['id'] ?? null);
+                        $id = GlobalId::entityId($args['id'] ?? null, $root->type);
 
                         return null === $id ? null : $this->gateway->find($entity, $id);
                     },

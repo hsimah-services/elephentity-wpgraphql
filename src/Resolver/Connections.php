@@ -7,6 +7,8 @@ namespace Eleph\WPGraphQL\Resolver;
 use Eleph\Runtime\Query\EntityQuery;
 use Eleph\Runtime\Storage\Cursor;
 use Eleph\Runtime\Storage\Offset;
+use Eleph\Runtime\Storage\Page;
+use InvalidArgumentException;
 
 /**
  * Shapes a lazy query into what a GraphQL connection expects.
@@ -34,11 +36,17 @@ final readonly class Connections
      */
     public function resolve(EntityQuery $query, array $args): array
     {
+        if (null !== ($args['last'] ?? null) || null !== ($args['before'] ?? null)) {
+            throw new InvalidArgumentException('Backward pagination is not supported. Use first and after.');
+        }
+
         $after = is_string($args['after'] ?? null) && '' !== $args['after']
             ? Cursor::of($args['after'])
             : null;
 
-        $page = $query->page($this->size($args), $after);
+        $size = $this->size($args);
+        $total = $query->count();
+        $page = 0 === $size ? new Page([]) : $query->page($size, $after);
 
         $start = Offset::fromCursor($after)->value;
         $edges = [];
@@ -56,12 +64,12 @@ final readonly class Connections
             'nodes' => $page->items,
             'edges' => $edges,
             'pageInfo' => [
-                'hasNextPage' => $page->hasMore(),
+                'hasNextPage' => 0 === $size ? $total > $start : $page->hasMore(),
                 'hasPreviousPage' => $start > 0,
                 'startCursor' => $edges[0]['cursor'] ?? null,
                 'endCursor' => [] === $edges ? null : $edges[count($edges) - 1]['cursor'],
             ],
-            'totalCount' => $query->count(),
+            'totalCount' => $total,
         ];
     }
 
@@ -78,6 +86,10 @@ final readonly class Connections
 
         // Capped rather than trusted: `first: 1000000` is how a connection stops being
         // a connection.
-        return min(max($first, 1), self::MAX_PAGE_SIZE);
+        if ($first < 0) {
+            throw new InvalidArgumentException('first must be non-negative.');
+        }
+
+        return min($first, self::MAX_PAGE_SIZE);
     }
 }

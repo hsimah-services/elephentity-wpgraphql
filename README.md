@@ -59,3 +59,7 @@ import — see `Runtime.php` there. It only fails in a real project, at boot, af
 generating. Regenerating `clog` in
 [`elephentity-examples`](https://github.com/hsimah-services/elephentity-examples) is
 what catches it.
+
+Global IDs are validated against public GraphQL types on roots, mutations and
+relationship inputs. Connections support `first` and `after`; `last` and `before`
+fail explicitly. `first: 0` returns an empty page; negative sizes are rejected.

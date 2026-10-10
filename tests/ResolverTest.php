@@ -11,6 +11,7 @@ use Eleph\WPGraphQL\Registration\MutationRegistrar;
 use Eleph\WPGraphQL\Registration\TypeRegistrar;
 use Eleph\WPGraphQL\Relay\GlobalId;
 use Eleph\WPGraphQL\Resolver\Connections;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionFunction;
@@ -44,6 +45,42 @@ final class ResolverTest extends TestCase
         self::assertIsCallable($resolve);
         self::assertNull($resolve(null, []));
         self::assertSame([], $gateway->calls);
+    }
+
+    public function testWrongTypeIdsNeverReachTheGateway(): void
+    {
+        $gateway = new FakeGateway();
+        $configs = (new MutationRegistrar($this->manifest(), $gateway))->configs();
+        $root = $this->rootField($gateway, 'post')['resolve'];
+        self::assertIsCallable($root);
+        $wrong = GlobalId::encode('Author', 7);
+        $calls = [
+            static fn () => $root(null, ['id' => $wrong]),
+            fn () => $this->call($configs['deletePost']['mutateAndGetPayload'], ['id' => $wrong]),
+            fn () => $this->call($configs['updatePost']['mutateAndGetPayload'], ['id' => $wrong]),
+            fn () => $this->call($configs['publishPost']['mutateAndGetPayload'], ['id' => $wrong]),
+            fn () => $this->call($configs['createComment']['mutateAndGetPayload'], ['author' => GlobalId::encode('Post', 7)]),
+            fn () => $this->call($configs['createPost']['mutateAndGetPayload'], ['tags' => [GlobalId::encode('Tag', 1), $wrong]]),
+        ];
+        foreach ($calls as $call) {
+            try {
+                $call();
+                self::fail('A wrong-type ID was accepted.');
+            } catch (InvalidArgumentException $exception) {
+                self::assertStringContainsString('Expected a', $exception->getMessage());
+            }
+        }
+        self::assertSame([], $gateway->calls);
+    }
+
+    public function testMatchingRelationshipIdsAreUnwrapped(): void
+    {
+        $gateway = new FakeGateway();
+        $configs = (new MutationRegistrar($this->manifest(), $gateway))->configs();
+        $this->call($configs['createComment']['mutateAndGetPayload'], ['author' => GlobalId::encode('Author', 7)]);
+        self::assertSame(['author' => '7'], $gateway->input);
+        $this->call($configs['updatePost']['mutateAndGetPayload'], ['id' => GlobalId::encode('Post', 1), 'tags' => [GlobalId::encode('Tag', 2), '3']]);
+        self::assertSame(['tags' => ['2', '3']], $gateway->input);
     }
 
     public function testAccessDeniedPropagatesFromTheRuntimeAsAnException(): void
@@ -95,6 +132,31 @@ final class ResolverTest extends TestCase
 
         self::assertIsArray($page['nodes']);
         self::assertCount(100, $page['nodes']);
+    }
+
+    public function testAZeroPageIsEmptyAndReportsVisibleRowsRemain(): void
+    {
+        $gateway = new FakeGateway();
+        $gateway->items = [new stdClass()];
+        $gateway->total = 1;
+        $page = $this->call($this->connection($gateway, 'posts')['resolve'], ['first' => 0]);
+        self::assertSame([], $page['nodes']);
+        self::assertSame([], $page['edges']);
+        self::assertIsArray($page['pageInfo']);
+        self::assertTrue($page['pageInfo']['hasNextPage']);
+        self::assertNull($page['pageInfo']['endCursor']);
+    }
+
+    public function testUnsupportedAndNegativePaginationIsRejected(): void
+    {
+        foreach ([['last' => 1], ['before' => 'cursor'], ['first' => -1]] as $args) {
+            try {
+                $this->call($this->connection(new FakeGateway(), 'posts')['resolve'], $args);
+                self::fail('Invalid pagination was accepted.');
+            } catch (InvalidArgumentException $exception) {
+                self::assertNotSame('', $exception->getMessage());
+            }
+        }
     }
 
     public function testCreateUpdateAndActionEachReachTheirOwnCall(): void
